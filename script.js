@@ -90,7 +90,7 @@ function copyData() {
     let eatBone = document.getElementById('eat_bone')?.value || "";
 
     // ข้าว: เอาจำนวนที่กรอกไปคูณ 11
-    let riceResult = riceVal > 0 ? (riceVal * 7) : "";
+    let riceResult = riceVal > 0 ? (riceVal * 5) : "";
 
     // --- เรียงบรรทัดทั้งหมดครบถ้วนตามต้องการ ห้ามลบแม้แต่บรรทัดเดียว ---
     let textLines = [
