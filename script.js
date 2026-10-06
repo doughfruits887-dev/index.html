@@ -28,7 +28,7 @@ function calculateTotal() {
     
     // แก๊ส: ถังละ 450 บาท
     let gasCount = parseFloat(document.getElementById('gas').value) || 0;
-    let gasTotal = gasCount * 450; 
+    let gasTotal = gasCount * 455; 
 
     // รวมยอด: กรุงไทย + เงินสด + แก๊ส (ไม่รวมข้าว)
     let total = krungthai + cash + gasTotal;
