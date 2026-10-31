@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Real-Time Human Scanner</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Font: Orbitron & Prompt -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- TensorFlow.js Core & COCO-SSD Model -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Prompt', sans-serif;
+        }
+        .font-tech {
+            font-family: 'Orbitron', sans-serif;
+        }
+        /* Scanning grid background overlay */
+        .hud-grid {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, rgba(0, 255, 204, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 255, 204, 0.05) 1px, transparent 1px);
+        }
+        /* Scanner scanline animation */
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100vh); }
+        }
+        .animate-scan {
+            animation: scanline 4s linear infinite;
+        }
+        /* Pulse glow */
+        @keyframes neonPulse {
+            0%, 100% { opacity: 0.8; filter: drop-shadow(0 0 8px rgba(234, 179, 8, 0.8)); }
+            50% { opacity: 0.4; filter: drop-shadow(0 0 2px rgba(234, 179, 8, 0.4)); }
+        }
+        .hud-pulse {
+            animation: neonPulse 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-black text-white h-screen w-screen overflow-hidden select-none">
+
+    <!-- Loading Screen Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-950 px-6">
+        <div class="relative flex items-center justify-center mb-6">
+            <div class="w-24 h-24 rounded-full border-4 border-yellow-500/20 border-t-yellow-400 animate-spin"></div>
+            <i data-lucide="scan-face" class="w-10 h-10 text-yellow-400 absolute"></i>
+        </div>
+        <h2 class="text-2xl font-bold font-tech tracking-wider text-yellow-400 mb-2">HUMAN DETECTION SYSTEM</h2>
+        <p id="loadingStatus" class="text-gray-400 text-sm animate-pulse text-center">กำลังโหลดโมเดล AI (TensorFlow COCO-SSD)...</p>
+    </div>
+
+    <!-- Main Viewport Layer -->
+    <div class="relative w-full h-full bg-black overflow-hidden flex items-center justify-center">
+
+        <!-- Hidden Raw Video Element -->
+        <video id="webcam" class="hidden" playsinline muted autoplay></video>
+
+        <!-- Canvas for Video Feed + Overlays -->
+        <canvas id="canvas" class="w-full h-full object-cover"></canvas>
+
+        <!-- Dynamic Scanner Laser Bar Overlay -->
+        <div class="pointer-events-none absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent opacity-40 animate-scan z-10"></div>
+        <div class="pointer-events-none absolute inset-0 hud-grid z-10 opacity-60"></div>
+
+        <!-- Top Camera Sensor Notch Target Indicator -->
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-none">
+            <div class="w-16 h-3 bg-yellow-500/30 backdrop-blur-md rounded-b-lg border-x border-b border-yellow-400/60 flex justify-center items-center">
+                <div class="w-2 h-2 rounded-full bg-yellow-400 animate-ping"></div>
+            </div>
+            <span class="text-[10px] font-tech text-yellow-400/80 mt-1 tracking-wider bg-black/60 px-2 py-0.5 rounded border border-yellow-500/30">CAM SENSOR ORIGIN</span>
+        </div>
+
+        <!-- Top Status Header HUD -->
+        <div class="absolute top-4 left-4 right-4 z-20 flex justify-between items-start pointer-events-none">
+            <!-- Left Info Panel -->
+            <div class="bg-black/60 backdrop-blur-md p-3 rounded-xl border border-yellow-500/30 text-xs space-y-1 shadow-lg">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="font-tech text-emerald-400 tracking-wider">SYSTEM ONLINE</span>
+                </div>
+                <div class="text-gray-300 font-mono">FPS: <span id="fpsVal" class="text-yellow-400 font-bold">0</span></div>
+                <div class="text-gray-300 font-mono">พบคนในเฟรม: <span id="countVal" class="text-yellow-400 font-bold">0</span> คน</div>
+            </div>
+
+            <!-- Right Camera Mode Indicator -->
+            <div class="bg-black/60 backdrop-blur-md px-3 py-2 rounded-xl border border-yellow-500/30 text-right">
+                <div class="text-[10px] text-gray-400 font-tech">CAMERA FACING</div>
+                <div id="cameraFacingText" class="text-xs font-bold text-yellow-400 uppercase font-tech">REAR (ENVIRONMENT)</div>
+            </div>
+        </div>
+
+        <!-- Bottom Controls Floating Toolbar -->
+        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 bg-black/70 backdrop-blur-xl px-6 py-3 rounded-full border border-yellow-500/40 shadow-2xl">
+            <!-- Camera Flip Button -->
+            <button id="btnSwitchCam" class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:scale-95 text-black font-bold px-5 py-2.5 rounded-full transition-all duration-200 shadow-lg shadow-yellow-500/20">
+                <i data-lucide="switch-camera" class="w-5 h-5"></i>
+                <span class="text-sm">สลับกล้อง</span>
+            </button>
+
+            <!-- Line Toggle Button -->
+            <button id="btnToggleLine" class="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 active:scale-95 text-yellow-400 border border-yellow-500/30 font-semibold px-4 py-2.5 rounded-full transition-all duration-200">
+                <i data-lucide="target" class="w-4 h-4"></i>
+                <span class="text-sm" id="lineStatusText">เส้นโยง: เปิด</span>
+            </button>
+        </div>
+
+        <!-- Corner HUD Accents -->
+        <div class="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-yellow-500/60 pointer-events-none"></div>
+        <div class="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-yellow-500/60 pointer-events-none"></div>
+        <div class="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-yellow-500/60 pointer-events-none"></div>
+        <div class="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-yellow-500/60 pointer-events-none"></div>
+
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // Global State Variables
+        let model = null;
+        let video = null;
+        let canvas = null;
+        let ctx = null;
+        let currentStream = null;
+        let facingMode = 'environment'; // 'environment' (กล้องหลัง) or 'user' (กล้องหน้า)
+        let isModelLoaded = false;
+        let showLines = true;
+
+        // FPS Calculation Variables
+        let lastFrameTime = performance.now();
+        let frameCount = 0;
+        let currentFps = 0;
+
+        // DOM Elements
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingStatus = document.getElementById('loadingStatus');
+        const btnSwitchCam = document.getElementById('btnSwitchCam');
+        const btnToggleLine = document.getElementById('btnToggleLine');
+        const lineStatusText = document.getElementById('lineStatusText');
+        const fpsValText = document.getElementById('fpsVal');
+        const countValText = document.getElementById('countVal');
+        const cameraFacingText = document.getElementById('cameraFacingText');
+
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // System Startup
+        window.onload = async () => {
+            video = document.getElementById('webcam');
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+
+            try {
+                // Step 1: Load TensorFlow COCO-SSD Model
+                loadingStatus.textContent = "กำลังโหลดโมเดลตรวจจับคน (COCO-SSD)...";
+                model = await cocoSsd.load({ base: 'lite_mobilenet_v2' }); // Lite version for fast realtime FPS
+                isModelLoaded = true;
+
+                // Step 2: Start Camera Stream
+                loadingStatus.textContent = "กำลังเชื่อมต่อและขออนุญาตใช้กล้อง...";
+                await startCamera();
+
+                // Step 3: Hide Loading Screen & Start Detection Loop
+                loadingOverlay.classList.add('hidden');
+                requestAnimationFrame(detectFrame);
+
+            } catch (err) {
+                console.error("Initialization Error:", err);
+                loadingStatus.textContent = "เกิดข้อผิดพลาด: " + err.message + " (กรุณาอนุญาตให้เข้าถึงกล้อง)";
+                loadingStatus.classList.add('text-red-400');
+            }
+        };
+
+        // Start Camera Function
+        async function startCamera() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    frameRate: { ideal: 60, max: 60 }
+                },
+                audio: false
+            };
+
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        resizeCanvas();
+                        cameraFacingText.textContent = facingMode === 'environment' ? 'REAR (กล้องหลัง)' : 'FRONT (กล้องหน้า)';
+                        resolve();
+                    };
+                });
+            } catch (error) {
+                alert("ไม่สามารถเข้าถึงกล้องได้: " + error.message);
+                throw error;
+            }
+        }
+
+        // Handle Window Resize to keep canvas sharp
+        function resizeCanvas() {
+            if (!video) return;
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Switch Front / Rear Camera
+        btnSwitchCam.addEventListener('click', async () => {
+            facingMode = (facingMode === 'environment') ? 'user' : 'environment';
+            await startCamera();
+        });
+
+        // Toggle Radar Target Line
+        btnToggleLine.addEventListener('click', () => {
+            showLines = !showLines;
+            lineStatusText.textContent = `เส้นโยง: ${showLines ? 'เปิด' : 'ปิด'}`;
+        });
+
+        // Main Real-Time Detection Loop
+        async function detectFrame(now) {
+            // Calculate FPS
+            frameCount++;
+            if (now - lastFrameTime >= 1000) {
+                currentFps = frameCount;
+                fpsValText.textContent = currentFps;
+                frameCount = 0;
+                lastFrameTime = now;
+            }
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA && isModelLoaded) {
+                // Perform Fast AI Object Detection
+                const predictions = await model.detect(video, 6, 0.45);
+                
+                // Filter specifically for "person"
+                const persons = predictions.filter(p => p.class === 'person');
+
+                // Update Detected Persons Count in HUD
+                countValText.textContent = persons.length;
+
+                // Render Video Frame and Overlays
+                render(persons);
+            }
+
+            // Loop continuously at maximum refresh rate
+            requestAnimationFrame(detectFrame);
+        }
+
+        // Render Function: Video + AI Overlay Graphics
+        function render(persons) {
+            const width = canvas.width;
+            const height = canvas.height;
+
+            // Clear previous canvas frame
+            ctx.clearRect(0, 0, width, height);
+
+            // Calculate scaling & aspect ratio cover for fullscreen display
+            const vWidth = video.videoWidth;
+            const vHeight = video.videoHeight;
+            const scale = Math.max(width / vWidth, height / vHeight);
+            const xOffset = (width - vWidth * scale) / 2;
+            const yOffset = (height - vHeight * scale) / 2;
+
+            // Flip horizontally if using front camera (Mirror Effect)
+            ctx.save();
+            if (facingMode === 'user') {
+                ctx.translate(width, 0);
+                ctx.scale(-1, 1);
+            }
+            
+            // Draw Video Frame onto Canvas
+            ctx.drawImage(video, xOffset, yOffset, vWidth * scale, vHeight * scale);
+            ctx.restore();
+
+            // Screen Top-Center Coordinates (Camera Notch Sensor Origin)
+            const originX = width / 2;
+            const originY = 12; // Top center camera position
+
+            // Draw bounding boxes and HUD lines for each detected person
+            persons.forEach((person, index) => {
+                let [pX, pY, pWidth, pHeight] = person.bbox;
+
+                // Mirror coordinates if front camera is active
+                if (facingMode === 'user') {
+                    pX = vWidth - pX - pWidth;
+                }
+
+                // Map video coordinates to scaled fullscreen canvas
+                const boxX = pX * scale + xOffset;
+                const boxY = pY * scale + yOffset;
+                const boxW = pWidth * scale;
+                const boxH = pHeight * scale;
+
+                // Center point of the detected person's box
+                const centerX = boxX + boxW / 2;
+                const centerY = boxY + boxH / 2;
+
+                // Rough Distance Estimation (m) based on relative height ratio
+                // Standard human height estimated ~1.7m
+                const relativeHeight = boxH / height;
+                const estimatedDistance = (1.8 / Math.max(relativeHeight, 0.05)).toFixed(1);
+
+                // 1. Draw Target Line from Top-Center Camera Origin to Person Center
+                if (showLines) {
+                    ctx.beginPath();
+                    ctx.moveTo(originX, originY);
+                    ctx.lineTo(centerX, centerY);
+                    
+                    // Laser Beam Gradient
+                    const gradient = ctx.createLinearGradient(originX, originY, centerX, centerY);
+                    gradient.addColorStop(0, 'rgba(234, 179, 8, 0.9)'); // Bright Yellow at origin
+                    gradient.addColorStop(1, 'rgba(234, 179, 8, 0.2)');
+
+                    ctx.strokeStyle = gradient;
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([6, 4]); // Cyberpunk dashed line style
+                    ctx.stroke();
+                    ctx.setLineDash([]); // Reset line dash
+                    
+                    // Target Dot at Center of Person
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#EAB308';
+                    ctx.fill();
+                    ctx.strokeStyle = '#FFFFFF';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                }
+
+                // 2. Draw Yellow Bounding Box with Cyberpunk Neon Glow
+                ctx.save();
+                ctx.strokeStyle = '#EAB308'; // Glowing Yellow
+                ctx.lineWidth = 3;
+                ctx.shadowColor = 'rgba(234, 179, 8, 0.8)';
+                ctx.shadowBlur = 12;
+                ctx.strokeRect(boxX, boxY, boxW, boxH);
+                ctx.restore();
+
+                // 3. Corner Brackets Styling for HUD Box
+                const cornerLen = Math.min(boxW, boxH) * 0.15;
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.lineWidth = 3;
+
+                // Top-Left Corner
+                ctx.beginPath();
+                ctx.moveTo(boxX, boxY + cornerLen);
+                ctx.lineTo(boxX, boxY);
+                ctx.lineTo(boxX + cornerLen, boxY);
+                ctx.stroke();
+
+                // Top-Right Corner
+                ctx.beginPath();
+                ctx.moveTo(boxX + boxW - cornerLen, boxY);
+                ctx.lineTo(boxX + boxW, boxY);
+                ctx.lineTo(boxX + boxW, boxY + cornerLen);
+                ctx.stroke();
+
+                // Bottom-Left Corner
+                ctx.beginPath();
+                ctx.moveTo(boxX, boxY + boxH - cornerLen);
+                ctx.lineTo(boxX, boxY + boxH);
+                ctx.lineTo(boxX + cornerLen, boxY + boxH);
+                ctx.stroke();
+
+                // Bottom-Right Corner
+                ctx.beginPath();
+                ctx.moveTo(boxX + boxW - cornerLen, boxY + boxH);
+                ctx.lineTo(boxX + boxW, boxY + boxH);
+                ctx.lineTo(boxX + boxW, boxY + boxH - cornerLen);
+                ctx.stroke();
+
+                // 4. Draw Header Tag ("คน" + Estimated Distance)
+                const tagText = `คน #${index + 1} | ~${estimatedDistance}m (${Math.round(person.score * 100)}%)`;
+                ctx.font = 'bold 13px "Prompt", sans-serif';
+                const textWidth = ctx.measureText(tagText).width;
+                const tagPadding = 8;
+                const tagHeight = 24;
+                
+                // Tag Position (Placed directly above the top edge of bounding box)
+                const tagX = boxX;
+                const tagY = boxY - tagHeight > 10 ? boxY - tagHeight : boxY + 4;
+
+                // Tag Background Pill
+                ctx.fillStyle = 'rgba(234, 179, 8, 0.95)'; // Yellow Background
+                ctx.fillRect(tagX, tagY, textWidth + (tagPadding * 2), tagHeight);
+
+                // Tag Text
+                ctx.fillStyle = '#000000'; // Dark Contrast Text
+                ctx.fillText(tagText, tagX + tagPadding, tagY + 16);
+            });
+        }
+    </script>
+</body>
+</html>
