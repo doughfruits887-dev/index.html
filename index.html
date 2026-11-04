@@ -2,410 +2,360 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI Real-Time Human Scanner</title>
-    <!-- Tailwind CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ร้านขายไอดี Free Fire พรีเมียม | Sadina Shop</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Font: Orbitron & Prompt -->
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- TensorFlow.js Core & COCO-SSD Model -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        * {
-            user-select: none;
-            -webkit-user-select: none;
+        body {
             font-family: 'Prompt', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+            min-height: 100vh;
         }
-        .font-tech {
-            font-family: 'Orbitron', sans-serif;
+
+        /* 🌫️ พื้นหลังรูปภาพแบบเบลอ ให้เข้ากับหน้าหลัก */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: url('https://i.ibb.co/3YpWxb5J/FB-IMG-1787390135699.jpg');
+            background-size: cover;
+            background-position: center;
+            filter: blur(10px) brightness(0.4);
+            transform: scale(1.1);
+            z-index: -1;
         }
-        /* Scanning grid background overlay */
-        .hud-grid {
-            background-size: 40px 40px;
-            background-image: 
-                linear-gradient(to right, rgba(0, 255, 204, 0.05) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(0, 255, 204, 0.05) 1px, transparent 1px);
+
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        /* Scanner scanline animation */
-        @keyframes scanline {
-            0% { transform: translateY(-100%); }
-            100% { transform: translateY(100vh); }
+
+        .gold-gradient-text {
+            background: linear-gradient(135deg, #FDE047 0%, #D97706 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
-        .animate-scan {
-            animation: scanline 4s linear infinite;
+
+        .gold-border-glow {
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.25);
+            border: 1px solid rgba(245, 158, 11, 0.4);
         }
-        /* Pulse glow */
-        @keyframes neonPulse {
-            0%, 100% { opacity: 0.8; filter: drop-shadow(0 0 8px rgba(234, 179, 8, 0.8)); }
-            50% { opacity: 0.4; filter: drop-shadow(0 0 2px rgba(234, 179, 8, 0.4)); }
-        }
-        .hud-pulse {
-            animation: neonPulse 2s infinite ease-in-out;
-        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     </style>
 </head>
-<body class="bg-black text-white h-screen w-screen overflow-hidden select-none">
+<body class="pb-12">
 
-    <!-- Loading Screen Overlay -->
-    <div id="loadingOverlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-950 px-6">
-        <div class="relative flex items-center justify-center mb-6">
-            <div class="w-24 h-24 rounded-full border-4 border-yellow-500/20 border-t-yellow-400 animate-spin"></div>
-            <i data-lucide="scan-face" class="w-10 h-10 text-yellow-400 absolute"></i>
-        </div>
-        <h2 class="text-2xl font-bold font-tech tracking-wider text-yellow-400 mb-2">HUMAN DETECTION SYSTEM</h2>
-        <p id="loadingStatus" class="text-gray-400 text-sm animate-pulse text-center">กำลังโหลดโมเดล AI (TensorFlow COCO-SSD)...</p>
-    </div>
-
-    <!-- Main Viewport Layer -->
-    <div class="relative w-full h-full bg-black overflow-hidden flex items-center justify-center">
-
-        <!-- Hidden Raw Video Element -->
-        <video id="webcam" class="hidden" playsinline muted autoplay></video>
-
-        <!-- Canvas for Video Feed + Overlays -->
-        <canvas id="canvas" class="w-full h-full object-cover"></canvas>
-
-        <!-- Dynamic Scanner Laser Bar Overlay -->
-        <div class="pointer-events-none absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-yellow-400 to-transparent opacity-40 animate-scan z-10"></div>
-        <div class="pointer-events-none absolute inset-0 hud-grid z-10 opacity-60"></div>
-
-        <!-- Top Camera Sensor Notch Target Indicator -->
-        <div class="absolute top-0 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center pointer-events-none">
-            <div class="w-16 h-3 bg-yellow-500/30 backdrop-blur-md rounded-b-lg border-x border-b border-yellow-400/60 flex justify-center items-center">
-                <div class="w-2 h-2 rounded-full bg-yellow-400 animate-ping"></div>
-            </div>
-            <span class="text-[10px] font-tech text-yellow-400/80 mt-1 tracking-wider bg-black/60 px-2 py-0.5 rounded border border-yellow-500/30">CAM SENSOR ORIGIN</span>
-        </div>
-
-        <!-- Top Status Header HUD -->
-        <div class="absolute top-4 left-4 right-4 z-20 flex justify-between items-start pointer-events-none">
-            <!-- Left Info Panel -->
-            <div class="bg-black/60 backdrop-blur-md p-3 rounded-xl border border-yellow-500/30 text-xs space-y-1 shadow-lg">
-                <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span class="font-tech text-emerald-400 tracking-wider">SYSTEM ONLINE</span>
-                </div>
-                <div class="text-gray-300 font-mono">FPS: <span id="fpsVal" class="text-yellow-400 font-bold">0</span></div>
-                <div class="text-gray-300 font-mono">พบคนในเฟรม: <span id="countVal" class="text-yellow-400 font-bold">0</span> คน</div>
-            </div>
-
-            <!-- Right Camera Mode Indicator -->
-            <div class="bg-black/60 backdrop-blur-md px-3 py-2 rounded-xl border border-yellow-500/30 text-right">
-                <div class="text-[10px] text-gray-400 font-tech">CAMERA FACING</div>
-                <div id="cameraFacingText" class="text-xs font-bold text-yellow-400 uppercase font-tech">REAR (ENVIRONMENT)</div>
-            </div>
-        </div>
-
-        <!-- Bottom Controls Floating Toolbar -->
-        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 bg-black/70 backdrop-blur-xl px-6 py-3 rounded-full border border-yellow-500/40 shadow-2xl">
-            <!-- Camera Flip Button -->
-            <button id="btnSwitchCam" class="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-400 active:scale-95 text-black font-bold px-5 py-2.5 rounded-full transition-all duration-200 shadow-lg shadow-yellow-500/20">
-                <i data-lucide="switch-camera" class="w-5 h-5"></i>
-                <span class="text-sm">สลับกล้อง</span>
-            </button>
-
-            <!-- Line Toggle Button -->
-            <button id="btnToggleLine" class="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 active:scale-95 text-yellow-400 border border-yellow-500/30 font-semibold px-4 py-2.5 rounded-full transition-all duration-200">
-                <i data-lucide="target" class="w-4 h-4"></i>
-                <span class="text-sm" id="lineStatusText">เส้นโยง: เปิด</span>
-            </button>
-        </div>
-
-        <!-- Corner HUD Accents -->
-        <div class="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-yellow-500/60 pointer-events-none"></div>
-        <div class="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-yellow-500/60 pointer-events-none"></div>
-        <div class="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-yellow-500/60 pointer-events-none"></div>
-        <div class="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-yellow-500/60 pointer-events-none"></div>
-
-    </div>
-
-    <!-- Application Script -->
-    <script>
-        // Global State Variables
-        let model = null;
-        let video = null;
-        let canvas = null;
-        let ctx = null;
-        let currentStream = null;
-        let facingMode = 'environment'; // 'environment' (กล้องหลัง) or 'user' (กล้องหน้า)
-        let isModelLoaded = false;
-        let showLines = true;
-
-        // FPS Calculation Variables
-        let lastFrameTime = performance.now();
-        let frameCount = 0;
-        let currentFps = 0;
-
-        // DOM Elements
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        const loadingStatus = document.getElementById('loadingStatus');
-        const btnSwitchCam = document.getElementById('btnSwitchCam');
-        const btnToggleLine = document.getElementById('btnToggleLine');
-        const lineStatusText = document.getElementById('lineStatusText');
-        const fpsValText = document.getElementById('fpsVal');
-        const countValText = document.getElementById('countVal');
-        const cameraFacingText = document.getElementById('cameraFacingText');
-
-        // Initialize Lucide Icons
-        lucide.createIcons();
-
-        // System Startup
-        window.onload = async () => {
-            video = document.getElementById('webcam');
-            canvas = document.getElementById('canvas');
-            ctx = canvas.getContext('2d');
-
-            try {
-                // Step 1: Load TensorFlow COCO-SSD Model
-                loadingStatus.textContent = "กำลังโหลดโมเดลตรวจจับคน (COCO-SSD)...";
-                model = await cocoSsd.load({ base: 'lite_mobilenet_v2' }); // Lite version for fast realtime FPS
-                isModelLoaded = true;
-
-                // Step 2: Start Camera Stream
-                loadingStatus.textContent = "กำลังเชื่อมต่อและขออนุญาตใช้กล้อง...";
-                await startCamera();
-
-                // Step 3: Hide Loading Screen & Start Detection Loop
-                loadingOverlay.classList.add('hidden');
-                requestAnimationFrame(detectFrame);
-
-            } catch (err) {
-                console.error("Initialization Error:", err);
-                loadingStatus.textContent = "เกิดข้อผิดพลาด: " + err.message + " (กรุณาอนุญาตให้เข้าถึงกล้อง)";
-                loadingStatus.classList.add('text-red-400');
-            }
-        };
-
-        // Start Camera Function
-        async function startCamera() {
-            if (currentStream) {
-                currentStream.getTracks().forEach(track => track.stop());
-            }
-
-            const constraints = {
-                video: {
-                    facingMode: facingMode,
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    frameRate: { ideal: 60, max: 60 }
-                },
-                audio: false
-            };
-
-            try {
-                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = currentStream;
-
-                return new Promise((resolve) => {
-                    video.onloadedmetadata = () => {
-                        video.play();
-                        resizeCanvas();
-                        cameraFacingText.textContent = facingMode === 'environment' ? 'REAR (กล้องหลัง)' : 'FRONT (กล้องหน้า)';
-                        resolve();
-                    };
-                });
-            } catch (error) {
-                alert("ไม่สามารถเข้าถึงกล้องได้: " + error.message);
-                throw error;
-            }
-        }
-
-        // Handle Window Resize to keep canvas sharp
-        function resizeCanvas() {
-            if (!video) return;
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resizeCanvas);
-
-        // Switch Front / Rear Camera
-        btnSwitchCam.addEventListener('click', async () => {
-            facingMode = (facingMode === 'environment') ? 'user' : 'environment';
-            await startCamera();
-        });
-
-        // Toggle Radar Target Line
-        btnToggleLine.addEventListener('click', () => {
-            showLines = !showLines;
-            lineStatusText.textContent = `เส้นโยง: ${showLines ? 'เปิด' : 'ปิด'}`;
-        });
-
-        // Main Real-Time Detection Loop
-        async function detectFrame(now) {
-            // Calculate FPS
-            frameCount++;
-            if (now - lastFrameTime >= 1000) {
-                currentFps = frameCount;
-                fpsValText.textContent = currentFps;
-                frameCount = 0;
-                lastFrameTime = now;
-            }
-
-            if (video.readyState === video.HAVE_ENOUGH_DATA && isModelLoaded) {
-                // Perform Fast AI Object Detection
-                const predictions = await model.detect(video, 6, 0.45);
-                
-                // Filter specifically for "person"
-                const persons = predictions.filter(p => p.class === 'person');
-
-                // Update Detected Persons Count in HUD
-                countValText.textContent = persons.length;
-
-                // Render Video Frame and Overlays
-                render(persons);
-            }
-
-            // Loop continuously at maximum refresh rate
-            requestAnimationFrame(detectFrame);
-        }
-
-        // Render Function: Video + AI Overlay Graphics
-        function render(persons) {
-            const width = canvas.width;
-            const height = canvas.height;
-
-            // Clear previous canvas frame
-            ctx.clearRect(0, 0, width, height);
-
-            // Calculate scaling & aspect ratio cover for fullscreen display
-            const vWidth = video.videoWidth;
-            const vHeight = video.videoHeight;
-            const scale = Math.max(width / vWidth, height / vHeight);
-            const xOffset = (width - vWidth * scale) / 2;
-            const yOffset = (height - vHeight * scale) / 2;
-
-            // Flip horizontally if using front camera (Mirror Effect)
-            ctx.save();
-            if (facingMode === 'user') {
-                ctx.translate(width, 0);
-                ctx.scale(-1, 1);
-            }
+    <!-- 📌 NAVBAR & BAR แสดงข้อมูลผู้ใช้ -->
+    <nav class="sticky top-0 z-40 glass-card border-b border-white/10 px-4 py-3">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
             
-            // Draw Video Frame onto Canvas
-            ctx.drawImage(video, xOffset, yOffset, vWidth * scale, vHeight * scale);
-            ctx.restore();
+            <!-- ปุ่มย้อนกลับหน้าหลัก -->
+            <button onclick="goBackMain()" class="flex items-center gap-2 bg-slate-800/80 hover:bg-slate-700 text-amber-400 border border-amber-500/30 px-3.5 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 shadow-lg">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span>กลับหน้าหลัก</span>
+            </button>
 
-            // Screen Top-Center Coordinates (Camera Notch Sensor Origin)
-            const originX = width / 2;
-            const originY = 12; // Top center camera position
+            <!-- โลโก้ร้าน -->
+            <div class="flex items-center gap-2">
+                <span class="text-xl">🔥</span>
+                <h1 class="text-base font-black tracking-wide gold-gradient-text hidden sm:block">SADINA SHOP</h1>
+            </div>
 
-            // Draw bounding boxes and HUD lines for each detected person
-            persons.forEach((person, index) => {
-                let [pX, pY, pWidth, pHeight] = person.bbox;
+            <!-- กล่องแสดง Session ผู้ใช้ -->
+            <div class="flex items-center gap-2 bg-slate-900/90 border border-white/10 rounded-full pl-1.5 pr-3 py-1">
+                <img id="user-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=FF" alt="Avatar" class="w-7 h-7 rounded-full border border-amber-400 bg-slate-800">
+                <div class="text-left">
+                    <p id="user-name" class="text-[11px] font-bold text-slate-200 leading-none truncate max-w-[90px]">กำลังยืนยัน...</p>
+                    <p id="user-status" class="text-[9px] font-medium text-emerald-400 leading-none mt-0.5">● สมาชิกออนไลน์</p>
+                </div>
+            </div>
 
-                // Mirror coordinates if front camera is active
-                if (facingMode === 'user') {
-                    pX = vWidth - pX - pWidth;
-                }
+        </div>
+    </nav>
 
-                // Map video coordinates to scaled fullscreen canvas
-                const boxX = pX * scale + xOffset;
-                const boxY = pY * scale + yOffset;
-                const boxW = pWidth * scale;
-                const boxH = pHeight * scale;
+    <!-- 🏆 HERO SECTION & TITLE -->
+    <header class="max-w-6xl mx-auto px-4 pt-6 pb-4 text-center">
+        <div class="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full mb-3">
+            <span class="animate-ping w-2 h-2 rounded-full bg-amber-400"></span>
+            <span class="text-[11px] font-bold text-amber-300 uppercase tracking-wider">ร้านค้าไอดีเกม Free Fire พรีเมียม</span>
+        </div>
+        <h2 class="text-2xl sm:text-4xl font-black text-white mb-2">เลือกซื้อไอดี Free Fire <span class="gold-gradient-text">ปลอดภัย 100%</span></h2>
+        <p class="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto">ไอดีสะอาด ไม่ติดสี ประวัติการผูกชัดเจน รับประกันหลังการขายตลอดอายุการใช้งาน</p>
+    </header>
 
-                // Center point of the detected person's box
-                const centerX = boxX + boxW / 2;
-                const centerY = boxY + boxH / 2;
+    <!-- 🔍 SEARCH & FILTER BAR -->
+    <section class="max-w-6xl mx-auto px-4 mb-6">
+        <div class="glass-card rounded-2xl p-3 sm:p-4 border border-white/10 space-y-3">
+            
+            <!-- ช่องค้นหา -->
+            <div class="relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                <input type="text" id="searchInput" oninput="filterProducts()" placeholder="ค้นหารหัสไอดี, สกินปืน, ท่าทาง..." class="w-full pl-9 pr-4 py-2 bg-slate-900/90 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition">
+            </div>
 
-                // Rough Distance Estimation (m) based on relative height ratio
-                // Standard human height estimated ~1.7m
-                const relativeHeight = boxH / height;
-                const estimatedDistance = (1.8 / Math.max(relativeHeight, 0.05)).toFixed(1);
+            <!-- ปุ่มแท็กหมวดหมู่ -->
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 text-xs no-scrollbar">
+                <button onclick="setCategory('all')" class="cat-btn active bg-amber-500 text-slate-950 font-extrabold px-3.5 py-1.5 rounded-xl whitespace-nowrap transition">ทั้งหมด</button>
+                <button onclick="setCategory('legend')" class="cat-btn bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-3.5 py-1.5 rounded-xl border border-white/5 whitespace-nowrap transition">🔥 เลเจนด์ / แรร์</button>
+                <button onclick="setCategory('rank')" class="cat-btn bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-3.5 py-1.5 rounded-xl border border-white/5 whitespace-nowrap transition">🏆 Grandmaster</button>
+                <button onclick="setCategory('random')" class="cat-btn bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-3.5 py-1.5 rounded-xl border border-white/5 whitespace-nowrap transition">🎰 ไอดีสายสุ่ม</button>
+            </div>
+        </div>
+    </section>
 
-                // 1. Draw Target Line from Top-Center Camera Origin to Person Center
-                if (showLines) {
-                    ctx.beginPath();
-                    ctx.moveTo(originX, originY);
-                    ctx.lineTo(centerX, centerY);
-                    
-                    // Laser Beam Gradient
-                    const gradient = ctx.createLinearGradient(originX, originY, centerX, centerY);
-                    gradient.addColorStop(0, 'rgba(234, 179, 8, 0.9)'); // Bright Yellow at origin
-                    gradient.addColorStop(1, 'rgba(234, 179, 8, 0.2)');
+    <!-- 🛒 PRODUCT GRID (รายการไอดี) -->
+    <main class="max-w-6xl mx-auto px-4">
+        <div id="productGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- สินค้าจะถูก Render จาก JavaScript -->
+        </div>
+    </main>
 
-                    ctx.strokeStyle = gradient;
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([6, 4]); // Cyberpunk dashed line style
-                    ctx.stroke();
-                    ctx.setLineDash([]); // Reset line dash
-                    
-                    // Target Dot at Center of Person
-                    ctx.beginPath();
-                    ctx.arc(centerX, centerY, 5, 0, Math.PI * 2);
-                    ctx.fillStyle = '#EAB308';
-                    ctx.fill();
-                    ctx.strokeStyle = '#FFFFFF';
-                    ctx.lineWidth = 1.5;
-                    ctx.stroke();
-                }
+    <!-- 💳 BUY / DETAILS MODAL (หน้าต่างสั่งซื้อ) -->
+    <div id="buyModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onclick="if(event.target===this) closeModal()">
+        <div class="glass-card w-full max-w-md rounded-3xl p-5 border border-amber-500/30 text-slate-100 relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg w-8 h-8 flex items-center justify-center bg-slate-800/80 rounded-full">✕</button>
 
-                // 2. Draw Yellow Bounding Box with Cyberpunk Neon Glow
-                ctx.save();
-                ctx.strokeStyle = '#EAB308'; // Glowing Yellow
-                ctx.lineWidth = 3;
-                ctx.shadowColor = 'rgba(234, 179, 8, 0.8)';
-                ctx.shadowBlur = 12;
-                ctx.strokeRect(boxX, boxY, boxW, boxH);
-                ctx.restore();
+            <div id="modalContent">
+                <!-- ข้อมูลรายละเอียดสินค้าและปุ่มชำระเงินจะโชว์ตรงนี้ -->
+            </div>
+        </div>
+    </div>
 
-                // 3. Corner Brackets Styling for HUD Box
-                const cornerLen = Math.min(boxW, boxH) * 0.15;
-                ctx.strokeStyle = '#FFFFFF';
-                ctx.lineWidth = 3;
+    <!-- 📜 JAVASCRIPT LOGIC -->
+    <script>
+        // Config Supabase (ตั้งค่าเดียวกับหน้าหลักของคุณ)
+        const SUPABASE_URL = 'https://ztkqtvdllpzjsvlqxzni.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_BkDeJmZYwMys8OP4eMkpVQ_F6hrJ35t';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-                // Top-Left Corner
-                ctx.beginPath();
-                ctx.moveTo(boxX, boxY + cornerLen);
-                ctx.lineTo(boxX, boxY);
-                ctx.lineTo(boxX + cornerLen, boxY);
-                ctx.stroke();
+        let userSessionToken = null;
+        let activeCategory = 'all';
 
-                // Top-Right Corner
-                ctx.beginPath();
-                ctx.moveTo(boxX + boxW - cornerLen, boxY);
-                ctx.lineTo(boxX + boxW, boxY);
-                ctx.lineTo(boxX + boxW, boxY + cornerLen);
-                ctx.stroke();
+        // 📦 รายการไอดี Free Fire ตัวอย่าง
+        const products = [
+            {
+                id: 'FF-8801',
+                title: 'ไอดีสายแข่ง เลเวล 78 | ชุดตระกูลหมอนทอง complete',
+                price: 1290,
+                oldPrice: 1890,
+                category: 'legend',
+                bind: 'Facebook (โอนสายสะอาด)',
+                img: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=600&auto=format&fit=crop&q=80',
+                badges: ['🔥 สกินแรร์', '✅ ประวัติสะอาด'],
+                highlights: ['ปืน Evo LV.7 (AK Dragon)', 'ชุด Grandmaster Season 28', 'บัฟเพชรเหลือ 450 เพชร']
+            },
+            {
+                id: 'FF-8802',
+                title: 'ไอดีตึง GM63 | ปืนวิวัฒนาการเต็ม 4 กาบ',
+                price: 2450,
+                oldPrice: 3200,
+                category: 'rank',
+                bind: 'VK (เปลี่ยนเมลได้)',
+                img: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=600&auto=format&fit=crop&q=80',
+                badges: ['🏆 Grandmaster', '👑 EVO MAX'],
+                highlights: ['MP40 Cobra LV.7', 'M1014 Green Attack LV.7', 'ท่าทางไฮไลท์ 18 ท่า']
+            },
+            {
+                id: 'FF-8803',
+                title: 'ไอดีเริ่มต้นสายคุ้ม | เพชรติดตัว 1,500 + สกินครบ',
+                price: 350,
+                oldPrice: 590,
+                category: 'random',
+                bind: 'Gmail (ยกเมล)',
+                img: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=600&auto=format&fit=crop&q=80',
+                badges: ['🎰 ไอดีเริ่มต้น', '💎 1500 เพชร'],
+                highlights: ['มีตัวละคร Alok + Homero', 'สกินปืนสีเหลืองครบเซ็ต', 'เหมาะสำหรับเอาไปทำไอดีหลัก']
+            }
+        ];
 
-                // Bottom-Left Corner
-                ctx.beginPath();
-                ctx.moveTo(boxX, boxY + boxH - cornerLen);
-                ctx.lineTo(boxX, boxY + boxH);
-                ctx.lineTo(boxX + cornerLen, boxY + boxH);
-                ctx.stroke();
-
-                // Bottom-Right Corner
-                ctx.beginPath();
-                ctx.moveTo(boxX + boxW - cornerLen, boxY + boxH);
-                ctx.lineTo(boxX + boxW, boxY + boxH);
-                ctx.lineTo(boxX + boxW, boxY + boxH - cornerLen);
-                ctx.stroke();
-
-                // 4. Draw Header Tag ("คน" + Estimated Distance)
-                const tagText = `คน #${index + 1} | ~${estimatedDistance}m (${Math.round(person.score * 100)}%)`;
-                ctx.font = 'bold 13px "Prompt", sans-serif';
-                const textWidth = ctx.measureText(tagText).width;
-                const tagPadding = 8;
-                const tagHeight = 24;
+        // 🔐 ระบบตรวจจับ Session จาก Hash URL (`#at=...`) ที่ส่งมาจากหน้าหลัก
+        async function initSession() {
+            const hash = window.location.hash;
+            if (hash && hash.includes('at=')) {
+                userSessionToken = decodeURIComponent(hash.split('at=')[1].split('&')[0]);
                 
-                // Tag Position (Placed directly above the top edge of bounding box)
-                const tagX = boxX;
-                const tagY = boxY - tagHeight > 10 ? boxY - tagHeight : boxY + 4;
+                // ตรวจสอบและดึงข้อมูลโปรไฟล์จาก Supabase
+                try {
+                    const { data: { user }, error } = await supabaseClient.auth.getUser(userSessionToken);
+                    if (user) {
+                        // ดึงข้อมูล Username / Avatar จาก Table profiles
+                        const { data: profile } = await supabaseClient
+                            .from('profiles')
+                            .select('username, avatar_url')
+                            .eq('id', user.id)
+                            .maybeSingle();
 
-                // Tag Background Pill
-                ctx.fillStyle = 'rgba(234, 179, 8, 0.95)'; // Yellow Background
-                ctx.fillRect(tagX, tagY, textWidth + (tagPadding * 2), tagHeight);
+                        const username = profile?.username || user.user_metadata?.username || user.email?.split('@')[0] || 'ผู้ใช้';
+                        const avatar = profile?.avatar_url || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + username;
 
-                // Tag Text
-                ctx.fillStyle = '#000000'; // Dark Contrast Text
-                ctx.fillText(tagText, tagX + tagPadding, tagY + 16);
-            });
+                        document.getElementById('user-name').textContent = username;
+                        document.getElementById('user-avatar').src = avatar;
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Session Error:', err);
+                }
+            }
+
+            // ถ้าไม่มี Token หรือ Token หมดอายุ ให้แจ้งเตือนผู้ใช้
+            document.getElementById('user-name').textContent = 'ไม่ได้ล็อกอิน';
+            document.getElementById('user-status').textContent = '● สิทธิ์ผู้เข้าชม';
+            document.getElementById('user-status').className = 'text-[9px] font-medium text-amber-400 leading-none mt-0.5';
         }
+
+        // 🔙 ปุ่มย้อนกลับไปหน้าหลัก (index (30).html)
+        function goBackMain() {
+            // หากต้องการส่ง Token กลับด้วย หรือกลับไปหน้าเดิม
+            window.location.href = 'index.html'; 
+        }
+
+        // 🎨 แสดงสินค้าทั้งหมด
+        function renderProducts(items) {
+            const grid = document.getElementById('productGrid');
+            if (items.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-xs">ไม่พบรายการไอดีที่ตรงกับการค้นหา</div>`;
+                return;
+            }
+
+            grid.innerHTML = items.map(item => `
+                <div class="glass-card rounded-2xl overflow-hidden border border-white/10 flex flex-col justify-between hover:border-amber-500/50 transition duration-300 group">
+                    <div>
+                        <!-- รูปไอดี & Badges -->
+                        <div class="relative h-44 overflow-hidden bg-slate-900">
+                            <img src="${item.img}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition duration-500">
+                            <div class="absolute top-2 left-2 flex flex-wrap gap-1">
+                                ${item.badges.map(b => `<span class="bg-slate-950/80 backdrop-blur-md text-amber-300 border border-amber-400/30 text-[10px] font-bold px-2 py-0.5 rounded-md">${b}</span>`).join('')}
+                            </div>
+                            <span class="absolute bottom-2 right-2 bg-black/80 backdrop-blur-md text-slate-300 text-[10px] px-2 py-0.5 rounded-md border border-white/10 font-mono">
+                                ID: ${item.id}
+                            </span>
+                        </div>
+
+                        <!-- รายละเอียดไอดี -->
+                        <div class="p-4 space-y-2">
+                            <h3 class="text-xs font-bold text-slate-100 line-clamp-2 leading-relaxed">${item.title}</h3>
+                            <div class="flex items-center gap-1.5 text-[11px] text-slate-400">
+                                <i class="fa-solid fa-link text-amber-400"></i>
+                                <span>การผูกมัด: <strong class="text-slate-200">${item.bind}</strong></span>
+                            </div>
+
+                            <!-- Highlights -->
+                            <ul class="text-[11px] text-slate-400 space-y-1 bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                                ${item.highlights.map(h => `<li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[9px]"></i> <span class="truncate">${h}</span></li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- ด้านล่าง: ราคา & ปุ่มสั่งซื้อ -->
+                    <div class="p-4 pt-0 flex items-center justify-between mt-2">
+                        <div>
+                            <span class="text-[10px] text-slate-500 line-through">฿${item.oldPrice.toLocaleString()}</span>
+                            <p class="text-lg font-black gold-gradient-text leading-none">฿${item.price.toLocaleString()}</p>
+                        </div>
+                        <button onclick="openBuyModal('${item.id}')" class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs px-4 py-2 rounded-xl shadow-lg shadow-amber-500/20 active:scale-95 transition">
+                            ดูรายละเอียด & สั่งซื้อ
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 🔍 กรองข้อมูลตามคำค้นหา
+        function filterProducts() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            const filtered = products.filter(p => {
+                const matchesCat = activeCategory === 'all' || p.category === activeCategory;
+                const matchesSearch = p.title.toLowerCase().includes(query) || p.id.toLowerCase().includes(query);
+                return matchesCat && matchesSearch;
+            });
+            renderProducts(filtered);
+        }
+
+        // 🏷️ กรองข้อมูลตามหมวดหมู่
+        function setCategory(cat) {
+            activeCategory = cat;
+            document.querySelectorAll('.cat-btn').forEach(btn => {
+                btn.className = 'cat-btn bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium px-3.5 py-1.5 rounded-xl border border-white/5 whitespace-nowrap transition';
+            });
+            event.target.className = 'cat-btn active bg-amber-500 text-slate-950 font-extrabold px-3.5 py-1.5 rounded-xl whitespace-nowrap transition';
+            filterProducts();
+        }
+
+        // 💳 เปิด Modal ซื้อสินค้า
+        function openBuyModal(productId) {
+            const item = products.find(p => p.id === productId);
+            if (!item) return;
+
+            const modalContent = document.getElementById('modalContent');
+            modalContent.innerHTML = `
+                <div class="text-center space-y-2">
+                    <span class="text-[10px] font-extrabold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">รายละเอียดการสั่งซื้อ</span>
+                    <h3 class="text-base font-bold text-white mt-1">${item.title}</h3>
+                    <p class="text-2xl font-black gold-gradient-text">฿${item.price.toLocaleString()}</p>
+                </div>
+
+                <div class="my-4 bg-slate-900/80 p-3.5 rounded-2xl border border-white/10 space-y-2 text-xs">
+                    <div class="flex justify-between border-b border-white/5 pb-2">
+                        <span class="text-slate-400">รหัสไอดี:</span>
+                        <span class="font-bold text-amber-300 font-mono">${item.id}</span>
+                    </div>
+                    <div class="flex justify-between border-b border-white/5 pb-2">
+                        <span class="text-slate-400">การผูกบัญชี:</span>
+                        <span class="font-bold text-slate-200">${item.bind}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">สถานะรับประกัน:</span>
+                        <span class="font-bold text-emerald-400">รับประกันไอดีสะอาด 100%</span>
+                    </div>
+                </div>
+
+                <!-- ช่องทางชำระเงิน -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-300">เลือกช่องทางชำระเงิน:</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button class="flex items-center justify-center gap-2 p-2.5 bg-slate-900 border border-amber-500/50 rounded-xl text-xs font-bold text-amber-300">
+                            <span>📱 PromptPay QR</span>
+                        </button>
+                        <button class="flex items-center justify-center gap-2 p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-slate-400 opacity-60">
+                            <span>👛 TrueMoney Wallet</span>
+                        </button>
+                    </div>
+                </div>
+
+                <button onclick="confirmOrder('${item.id}')" class="w-full mt-5 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs shadow-lg shadow-amber-500/20 transition active:scale-95">
+                    ยืนยันการทำรายการชำระเงิน
+                </button>
+            `;
+
+            document.getElementById('buyModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('buyModal').classList.add('hidden');
+        }
+
+        function confirmOrder(id) {
+            alert('ระบบกำลังเปิดช่องทางชำระเงินสำหรับไอดี ' + id + '\n(สามารถเชื่อมต่อระบบตัดเงิน / ซื้อผ่านแต้มสะสมได้เพิ่มเติม)');
+            closeModal();
+        }
+
+        // เริ่มทำงานเมื่อเปิดหน้าเว็บ
+        window.addEventListener('DOMContentLoaded', () => {
+            initSession();
+            renderProducts(products);
+        });
     </script>
 </body>
 </html>
