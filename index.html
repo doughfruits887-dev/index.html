@@ -218,11 +218,12 @@ body *:not(#user-uid):not(input):not(textarea) {
         }
 
         // 🔙 ปุ่มย้อนกลับไปหน้าหลัก (index (30).html)
-        function goBackMain() {
-            // หากต้องการส่ง Token กลับด้วย หรือกลับไปหน้าเดิม
-            window.location.href = 'index.html'; 
-        }
+                // 🔗 ลิงก์หน้าหลักของคุณ (ปุ่ม "กลับหน้าหลัก" จะพาไปที่นี่)
+        const MAIN_WEBSITE_URL = 'https://suphasan887-beep.github.io/index.html/';
 
+        function goBackMain() {
+            window.location.href = MAIN_WEBSITE_URL;
+        }
         // 🎨 แสดงสินค้าทั้งหมด
         function renderProducts(items) {
             const grid = document.getElementById('productGrid');
