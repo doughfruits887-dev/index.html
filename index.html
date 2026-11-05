@@ -419,6 +419,35 @@ body *:not(#user-uid):not(input):not(textarea) {
             initSession();
             renderProducts(products);
         });
+
+// 🏷️ ระบบสินค้าหมด: ถ้ากล่องสินค้ามี sold: true จะมีแถบสีเทาทับทั้งการ์ด
+(function () {
+    const _render = renderProducts;
+    renderProducts = function (items) {
+        _render(items);
+        document.querySelectorAll('#productGrid > div').forEach(function (card) {
+            const m = card.textContent.match(/ID:\s*(\S+)/);
+            const p = m && products.find(function (x) { return x.id === m[1]; });
+            if (!p || !p.sold) return;
+            card.style.position = 'relative';
+            const ov = document.createElement('div');
+            ov.style.cssText = 'position:absolute;inset:0;z-index:20;background:rgba(15,23,42,.72);backdrop-filter:grayscale(1);-webkit-backdrop-filter:grayscale(1);display:flex;align-items:center;justify-content:center;cursor:not-allowed;';
+            ov.innerHTML = '<div style="width:100%;background:rgba(71,85,105,.95);color:#fff;text-align:center;font-weight:900;font-size:22px;letter-spacing:2px;padding:12px 0;border-top:2px solid #cbd5e1;border-bottom:2px solid #cbd5e1;transform:rotate(-6deg) scale(1.1);">สินค้าหมด</div>';
+            card.appendChild(ov);
+        });
+    };
+
+    // กันซื้อซ้ำอีกชั้น
+    const _open = openBuyModal;
+    openBuyModal = function (id) {
+        const p = products.find(function (x) { return x.id === id; });
+        if (p && p.sold) return;
+        _open(id);
+    };
+
+    filterProducts(); // วาดหน้าใหม่ทันทีหลังติดตั้ง
+})();
+        
     </script>
 </body>
 </html>
