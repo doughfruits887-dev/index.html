@@ -226,6 +226,7 @@ body *:not(#user-uid):not(input):not(textarea) {
         }
         // 🎨 แสดงสินค้าทั้งหมด
         function renderProducts(items) {
+            items = [...items].sort((a, b) => Number(b.price) - Number(a.price));
             const grid = document.getElementById('productGrid');
             if (items.length === 0) {
                 grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500 text-xs">ไม่พบรายการไอดีที่ตรงกับการค้นหา</div>`;
