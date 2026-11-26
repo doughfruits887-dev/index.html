@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ไฟล์ของฉัน</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef1f4;--ink:#1b2430;--mut:#6b7686;--line:#d3dae2;--card:#fff;--acc:#16a34a;--warn:#d97706;--err:#dc2626}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{font:16px/1.4 Sarabun,sans-serif;color:var(--ink);background:var(--bg)}
+#app{height:100dvh;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top)}
+button{font:inherit;color:inherit;background:#e3e8ee;border:0;border-radius:8px;padding:8px 12px}
+button.pri,.sv{background:var(--acc);color:#fff;font-weight:600}
+input{font:inherit;width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+header{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--card);border-bottom:1px solid var(--line)}
+header b{flex:1;font-size:18px}header button{min-width:40px}
+.sr{padding:10px 12px}#rows{flex:1;overflow:auto;background:var(--card);border-top:1px solid var(--line)}
+.row{display:flex;gap:10px;align-items:center;padding:12px;border-bottom:1px solid var(--line)}
+.ic{width:42px;height:48px;border:2px solid var(--ink);border-radius:5px;display:grid;place-items:center;font-size:11px;font-weight:600;flex:none}
+.nm{flex:1;min-width:0}.nm b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nm small{color:var(--mut);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lk{display:flex;gap:6px;align-items:center;margin-top:3px}.lk span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#2563eb;font-size:13px}
+.lk button{padding:3px 8px;font-size:13px}.mb{font-size:20px;line-height:1;border:2px solid var(--acc);background:#fff}
+.empty{text-align:center;color:var(--mut);padding:40px 16px}
+.login{margin:auto;width:min(360px,92vw);display:flex;flex-direction:column;gap:10px}.login h1{margin:0}.login p{margin:0;color:var(--mut)}
+.err{color:var(--err);min-height:1.3em;font-size:14px}
+.sh{position:fixed;inset:0;background:#0007;display:flex;align-items:flex-end;z-index:50}
+.sh>div{width:100%;background:#fff;border-radius:14px 14px 0 0;padding:10px 12px calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px}
+.sh p{margin:4px 2px;color:var(--mut)}.sh button{padding:13px;text-align:left}.sh .d{color:var(--err)}
+.eh .inf{flex:1;font-size:13px;color:var(--mut);text-align:center}.wbtn i{font-style:normal}.wbtn.has{background:#fde8c8;color:#92400e}
+.tabs{display:flex;gap:6px;padding:6px 10px;overflow-x:auto;background:#e6eaef;white-space:nowrap}.tabs button{padding:6px 10px;font-size:14px}.tabs .on{background:var(--ink);color:#fff}
+#wp{max-height:34vh;overflow:auto;background:#fff7e8;border-bottom:1px solid var(--line)}#wp div{padding:8px 12px;border-bottom:1px solid #f3e2c0;font-size:14px}#wp code{display:block;color:#7c4a03;font:12px monospace}
+.ed{position:relative;flex:1;overflow:hidden;background:#fff}
+#gt,#hl{position:absolute;top:0;left:0;pointer-events:none;font:13px/20px ui-monospace,Menlo,monospace;padding-top:8px}
+#gt{width:46px;text-align:right;padding-right:6px;color:#8a94a3;background:#e6eaef;bottom:0;overflow:hidden}#gt div.bl{background:var(--err);color:#fff}
+#hl{left:46px;right:0}#hl div{height:20px}#hl .hb{background:#fecaca}
+#ta{position:absolute;inset:0 0 0 46px;border:0;border-radius:0;resize:none;background:transparent;padding:8px;font:13px/20px ui-monospace,Menlo,monospace;white-space:pre;overflow:auto;tab-size:2;outline:0}
+.fb{display:flex;gap:6px;padding:6px 10px;background:#eef1f4;border-bottom:1px solid var(--line)}.fb button{padding:6px 12px}
+.pv{position:fixed;inset:0;z-index:40;background:#fff;display:flex;flex-direction:column}.pv iframe{flex:1;border:0}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 16px;border-radius:20px;z-index:99;font-size:14px;max-width:90vw}
+</style></head><body><div id="app"></div>
+<script>
+const sb=supabase.createClient('https://ztkqtvdllpzjsvlqxzni.supabase.co','sb_publishable_BkDeJmZYwMys8OP4eMkpVQ_F6hrJ35t',{auth:{persistSession:true,autoRefreshToken:true,storageKey:'fm-auth'}});
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ext=n=>n.includes('.')?n.split('.').pop().toLowerCase():'';
+const LINK=id=>location.origin+location.pathname+'?v='+id;
+const META='id,parent_id,name,is_binary,mime,shared,updated_at';
+let user=null,files=[],q='',ed=null,tab=null,warns=[],tm,fqv='';
+const kids=f=>files.filter(x=>x.parent_id===f.id);
+const toast=m=>{let t=$('#toast');if(!t){t=document.createElement('div');t.id='toast';document.body.appendChild(t)}t.textContent=m;t.hidden=false;clearTimeout(tm);tm=setTimeout(()=>t.hidden=true,2600)};
+function b64(u){let s='';for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s)}
+function unb64(s){const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
+function sheet(items,msg){const d=document.createElement('div');d.className='sh';const c=document.createElement('div');if(msg){const p=document.createElement('p');p.textContent=msg;c.appendChild(p)}
+ items.forEach(([t,fn,cl])=>{const b=document.createElement('button');b.textContent=t;if(cl)b.className=cl;b.onclick=()=>{d.remove();fn&&fn()};c.appendChild(b)});
+ d.onclick=e=>{if(e.target===d)d.remove()};d.appendChild(c);document.body.appendChild(d)}
+
+/* ---------- แสดงลิงก์ถาวร (ไม่ต้องล็อกอิน) / ตัวรันไฟล์ ---------- */
+function build(fs){const m=fs.find(f=>f.main)||fs[0],e=ext(m.name);
+ const by=u=>fs.find(f=>!f.main&&f.name===u.split(/[?#]/)[0].split('/').pop());
+ if(m.is_binary)return(m.mime||'').startsWith('image/')?'<img style="max-width:100%" src="data:'+m.mime+';base64,'+m.content+'">':'<p style="font:16px sans-serif;padding:16px">ไฟล์นี้ไม่ใช่ข้อความ เปิดดูในเว็บไม่ได้ ให้ดาวน์โหลดแทน</p>';
+ if(e==='html'||e==='htm'){let h=m.content;
+  h=h.replace(/<link\b[^>]*href=["']([^"']+)["'][^>]*>/gi,(t,u)=>{const f=by(u);return f&&/stylesheet/i.test(t)?'<style>'+f.content+'</style>':t});
+  return h.replace(/<script\b([^>]*?)src=["']([^"']+)["']([^>]*)>\s*<\/script>/gi,(t,a,u,b)=>{const f=by(u);return f?'<script'+a+b+'>'+f.content.replace(/<\/script/gi,'<\\/script')+'<\/script>':t})}
+ if(e==='svg')return m.content;
+ if(['js','mjs'].includes(e)){if(/\brequire\(|\bprocess\.|\bmodule\.exports/.test(m.content))return'<p style="font:16px sans-serif;padding:16px">ไฟล์นี้ใช้ Node (require/process) รันในเบราว์เซอร์ไม่ได้ ต้องรันบนเซิร์ฟเวอร์ที่มี Node</p>';
+  return'<body style="font:14px monospace;padding:12px;white-space:pre-wrap"><div id=o></div><script>const o=document.getElementById("o"),p=(c,a)=>{const d=document.createElement("div");d.style.color=c;d.textContent=a.map(x=>typeof x==="object"?JSON.stringify(x):String(x)).join(" ");o.append(d)};console.log=(...a)=>p("#111",a);console.error=(...a)=>p("#c00",a);onerror=(m,s,l)=>p("#c00",["Error: "+m+" (บรรทัด "+l+")"]);<\/script><script>'+m.content.replace(/<\/script/gi,'<\\/script')+'<\/script>'}
+ const srv=['py','java','c','cpp','cs','go','rs','php','rb','sh','kt','swift','sql'].includes(e)?'<p style="font:14px sans-serif;color:#92400e">ภาษานี้ต้องมีตัวรันบนเซิร์ฟเวอร์ รันในเบราว์เซอร์ไม่ได้ จึงแสดงเป็นข้อความ</p>':'';
+ return srv+'<pre style="white-space:pre-wrap;font:14px monospace;padding:12px">'+esc(m.content)+'</pre>'}
+function frame(fs){const f=document.createElement('iframe');f.setAttribute('sandbox','allow-scripts allow-forms allow-popups allow-modals');f.srcdoc=build(fs);return f}
+async function viewer(id){document.body.innerHTML='<p style="padding:20px">กำลังโหลด...</p>';
+ const{data}=await sb.rpc('fm_public_bundle',{p_id:id});
+ if(!data){document.body.innerHTML='<p style="padding:20px">ไม่พบลิงก์นี้ หรือเจ้าของยังไม่ได้สร้างลิงก์</p>';return}
+ document.title=data.name;document.body.innerHTML='';const f=frame(data.files);f.style.cssText='position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff';document.body.appendChild(f)}
+
+/* ---------- ล็อกอิน (ชื่อผู้ใช้ + รหัสผ่าน จำในเครื่อง) ---------- */
+function loginView(err,u){$('#app').innerHTML=`<div class="login"><h1>ไฟล์ของฉัน</h1><p>เข้าสู่ระบบเพื่อจัดการไฟล์และแก้ไขโค้ด</p><input id="u" placeholder="ชื่อผู้ใช้ (a-z 0-9 _)" autocapitalize="off" value="${esc(u||'')}"><input id="p" type="password" placeholder="รหัสผ่าน (6 ตัวขึ้นไป)"><div class="err">${esc(err||'')}</div><button class="pri" onclick="auth(0)">เข้าสู่ระบบ</button><button onclick="auth(1)">สมัครสมาชิก</button></div>`}
+async function auth(reg){const u=$('#u').value.trim().toLowerCase(),p=$('#p').value;
+ if(!/^[a-z0-9_]{3,20}$/.test(u))return loginView('ชื่อผู้ใช้ใช้ a-z 0-9 _ ยาว 3-20 ตัว',u);
+ if(p.length<6)return loginView('รหัสผ่านอย่างน้อย 6 ตัว',u);
+ const email=u+'@fm.example.com',r=reg?await sb.auth.signUp({email,password:p,options:{data:{username:u}}}):await sb.auth.signInWithPassword({email,password:p});
+ if(r.error)return loginView(/Invalid login/.test(r.error.message)?'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง':/already/.test(r.error.message)?'ชื่อนี้มีคนใช้แล้ว':r.error.message,u);
+ if(!r.data.session)return loginView('สมัครแล้ว แต่เข้าไม่ได้: ต้องปิด Confirm email ใน Supabase ก่อน',u);
+ user=r.data.session.user;await load();list()}
+async function logout(){await sb.auth.signOut();user=null;files=[];loginView()}
+
+/* ---------- หน้ารายการไฟล์ ---------- */
+async function load(){const{data,error}=await sb.from('fm_files').select(META).order('created_at');if(error)toast('โหลดไม่สำเร็จ: '+error.message);files=data||[]}
+const row=f=>{const k=kids(f);return`<div class="row"><div class="ic">${esc(ext(f.name)||'•')}</div><div class="nm"><b>${esc(f.name)}</b>${k.length?'<small>+ '+k.map(x=>esc(x.name)).join(', ')+'</small>':''}${f.shared?`<div class="lk"><span>${LINK(f.id)}</span><button onclick="copy('${f.id}')">คัดลอก</button></div>`:''}</div><button class="mb" onclick="menu('${f.id}')">⋮</button></div>`};
+function rows(){const s=q.toLowerCase(),rs=files.filter(f=>!f.parent_id&&(!s||[f,...kids(f)].some(x=>x.name.toLowerCase().includes(s))));
+ $('#rows').innerHTML=rs.map(row).join('')||`<p class="empty">${s?'ไม่พบไฟล์ที่ค้นหา':'ยังไม่มีไฟล์ กด + เพื่อเพิ่ม'}</p>`}
+function list(){ed=null;$('#app').innerHTML=`<header><b>ไฟล์ของฉัน</b><button class="pri" onclick="addMenu()">+</button><button onclick="logout()">ออก</button></header><div class="sr"><input id="q" placeholder="ค้นหาชื่อไฟล์" value="${esc(q)}"></div><div id="rows"></div><input id="up" type="file" multiple hidden>`;
+ $('#q').oninput=e=>{q=e.target.value;rows()};$('#up').onchange=e=>upload(e.target.files);rows()}
+function addMenu(){sheet([['อัปโหลดไฟล์จากเครื่อง',()=>$('#up').click()],['สร้างไฟล์ใหม่แล้วพิมพ์โค้ด',newFile]])}
+async function ins(o,parent){const{data,error}=await sb.from('fm_files').insert({user_id:user.id,parent_id:parent||null,...o}).select(META).single();if(error){toast('บันทึกไม่สำเร็จ: '+error.message);return null}files.push(data);return data}
+async function upload(fl){for(const f of fl){if(f.size>5e6){toast(f.name+' ใหญ่เกิน 5 MB');continue}
+ const u=new Uint8Array(await f.arrayBuffer()),bin=u.subarray(0,8000).includes(0);
+ await ins({name:f.name,content:bin?b64(u):new TextDecoder().decode(u),is_binary:bin,mime:f.type||null})}rows();toast('อัปโหลดเสร็จ')}
+async function newFile(){const n=(prompt('ตั้งชื่อไฟล์ พร้อมนามสกุล เช่น index.html')||'').trim();if(!n)return;const f=await ins({name:n});if(f)openEd(f.id)}
+function menu(id){const f=files.find(x=>x.id===id);sheet([['Edit code',()=>openEd(id)],['สร้างลิงก์',()=>mkLink(id)],['ดาวน์โหลด',()=>dl(id)],['Delete',()=>del(id),'d']],f.name)}
+async function copy(id){try{await navigator.clipboard.writeText(LINK(id));toast('คัดลอกลิงก์แล้ว')}catch(e){prompt('คัดลอกลิงก์นี้',LINK(id))}}
+async function mkLink(id){const f=files.find(x=>x.id===id);if(!f.shared){const{error}=await sb.from('fm_files').update({shared:true}).eq('id',id);if(error)return toast(error.message);f.shared=true}rows();copy(id)}
+async function dl(id){const{data}=await sb.from('fm_files').select('name,content,is_binary,mime').or(`id.eq.${id},parent_id.eq.${id}`);
+ (data||[]).forEach((f,i)=>setTimeout(()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([f.is_binary?unb64(f.content):f.content],{type:f.mime||'text/plain'}));a.download=f.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000)},i*400))}
+function del(id){const f=files.find(x=>x.id===id);sheet([['ลบ "'+f.name+'" ถาวร (รวมไฟล์ย่อยและลิงก์)',async()=>{const{error}=await sb.from('fm_files').delete().eq('id',id);if(error)return toast(error.message);files=files.filter(x=>x.id!==id&&x.parent_id!==id);rows();toast('ลบแล้ว')},'d'],['ยกเลิก']])}
+
+/* ---------- ตรวจโค้ด (แจ้งเตือนอย่างเดียว ไม่แก้ให้เอง) ---------- */
+const KW='function return const let var else while class import export async await switch case break continue typeof throw default catch finally'.split(' ');
+const GL='window document console Math JSON Object Array String Number Date Promise fetch setTimeout setInterval localStorage location navigator event alert parseInt parseFloat Boolean Error Map Set undefined null true false NaN require module exports process'.split(' ');
+const TAGS='html head body div span p a img ul ol li table tr td th thead tbody h1 h2 h3 h4 h5 h6 button input form label select option textarea script style link meta title nav header footer section article main aside canvas svg video audio iframe pre code b i u strong em small br hr'.split(' '),VOID='br hr img input meta link area base col embed source track wbr'.split(' ');
+function lev(a,b){const m=[];for(let i=0;i<=a.length;i++)m[i]=[i];for(let j=1;j<=b.length;j++)m[0][j]=j;for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++){m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[i-1]===b[j-1]?0:1));if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1])m[i][j]=Math.min(m[i][j],m[i-2][j-2]+1)}return m[a.length][b.length]}
+const blank=t=>t.replace(/[^\n]/g,' ');
+const O_C={l:'//',b:1,q:'"\'`'},O_CSS={l:'',b:1,q:'"\''},O_H={l:'#',b:0,q:'"\'',t:1},O_D={l:'--',b:1,q:'"\''};
+function strip(s,o=O_C,w,off=0){let r='',i=0;const n=s.length;
+ while(i<n){const c=s[i];
+  if(o.b&&c==='/'&&s[i+1]==='*'){const j=s.indexOf('*/',i+2),e=j<0?n:j+2;r+=blank(s.slice(i,e));i=e}
+  else if(o.l&&s.startsWith(o.l,i)){let j=s.indexOf('\n',i);if(j<0)j=n;r+=blank(s.slice(i,j));i=j}
+  else if(o.t&&(s.startsWith('"""',i)||s.startsWith("'''",i))){const q=s.substr(i,3),j=s.indexOf(q,i+3),e=j<0?n:j+3;r+=blank(s.slice(i,e));i=e}
+  else if(o.q.includes(c)){let j=i+1;while(j<n&&s[j]!==c&&(c==='`'||s[j]!=='\n')){if(s[j]==='\\')j++;j++}
+   if(w&&c!=='`'&&s[j]!==c)w.push({l:s.slice(0,i).split('\n').length+off,m:`เครื่องหมายคำพูด ${c} เปิดแล้วไม่ปิดในบรรทัดนี้`,f:`เติม ${c} ปิดท้ายสตริง`});
+   r+=blank(s.slice(i,j+1));i=j+1}
+  else{r+=c;i++}}return r}
+function brackets(cl,w,off){const st=[],P={')':'(',']':'[','}':'{'},C={'(':')','[':']','{':'}'};let ln=1+off;
+ for(const c of cl){if(c==='\n')ln++;else if(C[c])st.push([c,ln]);else if(P[c]){const t=st.pop();
+  if(!t)w.push({l:ln,m:`มี ${c} เกินมา (ไม่มีตัวเปิด)`,f:`ลบ ${c} ออก`});
+  else if(t[0]!==P[c])w.push({l:ln,m:`ปิดด้วย ${c} แต่ตัวที่เปิดค้างคือ ${t[0]} (บรรทัด ${t[1]})`,f:`ควรเป็น ${C[t[0]]}`})}}
+ st.forEach(t=>w.push({l:t[1],m:`ขาดตัวปิดของ ${t[0]}`,f:`${t[0]} ... ${C[t[0]]}`}))}
+function jsLint(code,w,off){const cl=strip(code,O_C,w,off);brackets(cl,w,off);const dec=new Set();let m;
+ for(const re of[/\b(?:const|let|var|function\*?|class)\s+([A-Za-z_$][\w$]*)/g,/\b([A-Za-z_$][\w$]*)\s*=>/g])while(m=re.exec(cl))dec.add(m[1]);
+ const rp=/\(([^()]*)\)\s*(?:=>|\{)/g;while(m=rp.exec(cl))m[1].split(',').forEach(p=>{const x=p.split('=')[0].trim().replace(/^\.\.\./,'');if(/^[A-Za-z_$][\w$]*$/.test(x))dec.add(x)});
+ const rb=/\b(?:const|let|var)\s*[{[]([^}\]]*)[}\]]/g;while(m=rb.exec(cl))m[1].split(',').forEach(p=>{const x=p.split(':').pop().split('=')[0].trim();if(x)dec.add(x)});
+ const names=[...dec];
+ cl.split('\n').forEach((ln,i)=>{const seen=new Set(),re=/(?<![\w$.])[A-Za-z_$][\w$]*/g;let k;
+  while(k=re.exec(ln)){const t=k[0];if(seen.has(t)||dec.has(t)||GL.includes(t)||/^\s*:/.test(ln.slice(k.index+t.length)))continue;seen.add(t);
+   if(KW.includes(t))continue;
+   const kw=KW.find(w2=>t!==w2&&(w2.toLowerCase()===t.toLowerCase()||(w2.length>=4&&lev(w2,t)===1)));
+   if(kw){w.push({l:i+1+off,m:`"${t}" สะกด/ตัวพิมพ์ไม่ตรงคำสั่ง`,f:`ควรเป็น ${kw}`});continue}
+   const s=names.find(n=>n.length>=3&&(n.toLowerCase()===t.toLowerCase()||(t.length>=3&&n.length>=5&&lev(n,t)<=2)||(t.length>=3&&lev(n,t)<=1)));
+   if(s)w.push({l:i+1+off,m:`"${t}" ไม่มีในโค้ด อาจหมายถึง "${s}"`,f:`ใช้ ${s} ให้ตรงตัวแปรหลัก`})}})}
+function htmlLint(code,w,xml){let clean=code.replace(/<!--[\s\S]*?-->/g,blank);const re0=/<(script|style)\b([^>]*)>([\s\S]*?)<\/\1>/gi;let m;
+ while(m=re0.exec(clean)){const off=clean.slice(0,m.index+m[0].indexOf('>')+1).split('\n').length-1;
+  if(m[1].toLowerCase()==='script'&&!/src=/.test(m[2]))jsLint(m[3],w,off);else if(m[1].toLowerCase()==='style')brackets(strip(m[3],O_CSS),w,off)}
+ clean=clean.replace(re0,(t,a,b,c)=>t.replace(c,blank(c)));
+ const st=[],re=/<(\/?)([a-zA-Z][\w-]*)\b[^>]*?(\/?)>/g;let last=0,ln=1;
+ while(m=re.exec(clean)){ln+=clean.slice(last,m.index).split('\n').length-1;last=m.index;const n=m[2].toLowerCase();
+  if(!m[1]){if(!xml&&!TAGS.includes(n)&&!n.includes('-')){const s=TAGS.find(t=>lev(t,n)<=1&&n.length>2);if(s)w.push({l:ln,m:`แท็ก <${n}> ไม่รู้จัก อาจหมายถึง <${s}>`,f:`<${s}>`})}
+   if(!(xml?[]:VOID).includes(n)&&!m[3])st.push([n,ln])}
+  else if(!xml&&VOID.includes(n))w.push({l:ln,m:`</${n}> ไม่ต้องมีแท็กปิด`,f:`ลบ </${n}>`});
+  else{const i=st.map(x=>x[0]).lastIndexOf(n);if(i<0)w.push({l:ln,m:`มี </${n}> เกินมา ไม่มี <${n}> ที่เปิดไว้`,f:`ลบ </${n}> หรือเติม <${n}>`});
+   else{st.splice(i+1).forEach(x=>w.push({l:x[1],m:`<${x[0]}> ไม่มีแท็กปิดก่อนถึง </${n}> (บรรทัด ${ln})`,f:`<${x[0]}> ... </${x[0]}>`}));st.pop()}}}
+ st.forEach(x=>w.push({l:x[1],m:`ขาด </${x[0]}> ของ <${x[0]}>`,f:`<${x[0]}> ... </${x[0]}>`}))}
+const KWC='if else for while switch case break continue return class public private protected static void new function package import interface struct enum try catch finally throw const final extends implements namespace using abstract default'.split(' ');
+const KWP='def class return import from elif else while try except finally with lambda yield pass break continue raise assert global nonlocal'.split(' ');
+const KWS='select from where insert into values update delete create table alter drop join group order having limit distinct union'.split(' ');
+const KWH='if else elif then done esac while function case until return export local'.split(' ');
+const L={};const reg=(x,o)=>x.split(' ').forEach(e=>L[e]=o);
+reg('java c h cpp cc hpp cs go kt kts swift dart scala groovy ts tsx jsx',{o:O_C,kw:KWC,w:1});
+reg('php',{o:O_C,kw:KWC});reg('rs',{o:{l:'//',b:1,q:'"'},kw:KWC});
+reg('py pyw',{o:O_H,kw:KWP,py:1,w:1});reg('rb pl r toml conf cfg ini env gitignore dockerfile makefile mk',{o:O_H,kw:[]});
+reg('sh bash zsh',{o:{l:'#',b:0,q:'"\''},kw:KWH});reg('yml yaml',{o:O_H,kw:[],yaml:1});
+reg('sql',{o:O_D,kw:KWS,ci:1,w:1});reg('lua hs',{o:O_D,kw:[]});
+function kwTypos(cl,kws,w,ci){const cnt={};cl.replace(/[A-Za-z_]\w*/g,t=>{cnt[t]=(cnt[t]||0)+1});
+ cl.split('\n').forEach((ln,i)=>{const re=/(?<![\w$.@:])[A-Za-z_]\w*/g;let k;while(k=re.exec(ln)){const t=k[0],x=ci?t.toLowerCase():t;
+  if(cnt[t]>1||kws.includes(x)||t.length<4)continue;
+  const kw=kws.find(y=>y.length>=4&&((!ci&&y.toLowerCase()===t.toLowerCase())||lev(y,x)===1));
+  if(kw)w.push({l:i+1,m:`"${t}" อาจสะกดผิด ไม่ตรงคำสั่งในภาษานี้`,f:`ควรเป็น ${kw}`})}})}
+function pyLint(cl,w){const Ls=cl.split('\n'),ind=s=>s.match(/^[ \t]*/)[0].length;let tabs=0,sp=0,open=0,prev=null;
+ Ls.forEach((ln,i)=>{if(/^\t/.test(ln))tabs=tabs||i+1;if(/^ /.test(ln))sp=sp||i+1});
+ if(tabs&&sp)w.push({l:tabs,m:'ย่อหน้าปนกันระหว่างแท็บกับเว้นวรรค Python จะ error',f:'เลือกอย่างเดียว (แนะนำเว้นวรรค 4 ตัว)'});
+ Ls.forEach((ln,i)=>{const t=ln.trim(),was=open;for(const c of ln){if('([{'.includes(c))open++;else if(')]}'.includes(c))open--}
+  if(!t||was>0)return;
+  if(prev&&prev.c&&ind(ln)<=prev.i)w.push({l:i+1,m:`ต้องย่อหน้าเข้าไปใต้บรรทัด ${prev.l} ที่ลงท้ายด้วย :`,f:'เพิ่มเว้นวรรค 4 ตัวหน้าบรรทัดนี้'});
+  const hd=/^(def|class|if|elif|else|for|while|try|except|finally|with|async\s+(def|for|with))\b/.test(t),co=/:\s*$/.test(t);
+  if(hd&&!co&&!/:\s*\S/.test(t)&&open===0)w.push({l:i+1,m:'ขาด : ท้ายบรรทัดนี้',f:t+':'});
+  prev={l:i+1,i:ind(ln),c:hd&&co}})}
+function generic(code,c,w){const cl=strip(code,c.o,c.w?w:null);brackets(cl,w,0);if(c.kw.length)kwTypos(cl,c.kw,w,c.ci);if(c.py)pyLint(cl,w);
+ if(c.yaml)code.split('\n').forEach((s,i)=>{if(/^ *\t/.test(s))w.push({l:i+1,m:'YAML ห้ามใช้แท็บเป็นย่อหน้า',f:'ใช้เว้นวรรคแทน'})})}
+function lint(name,code){const b=name.toLowerCase(),e=ext(name),k=e||b,w=[];
+ if(e==='json'){try{const o=JSON.parse(code);if(b==='package.json'&&o&&typeof o==='object'){if(!o.name)w.push({l:1,m:'package.json ไม่มี "name"',f:'"name": "my-app"'});if(!o.version)w.push({l:1,m:'package.json ไม่มี "version"',f:'"version": "1.0.0"'})}}
+  catch(x){const p=/position (\d+)/.exec(x.message);w.push({l:p?code.slice(0,+p[1]).split('\n').length:1,m:'JSON ผิดรูปแบบ: '+x.message})}}
+ else if(e==='html'||e==='htm')htmlLint(code,w);else if(['xml','svg','xhtml','xsd','rss'].includes(e))htmlLint(code,w,1);
+ else if(['css','scss','less'].includes(e))brackets(strip(code,O_CSS),w,0);else if(['js','mjs','cjs'].includes(e))jsLint(code,w,0);
+ else if(L[k])generic(code,L[k],w);
+ return w.sort((a,b)=>a.l-b.l)}
+
+/* ---------- หน้าแก้ไขโค้ด ---------- */
+const cf=()=>ed.files.find(f=>f.id===tab);
+async function openEd(id){const{data,error}=await sb.from('fm_files').select('*').or(`id.eq.${id},parent_id.eq.${id}`);if(error||!data||!data.length)return toast('เปิดไม่ได้');
+ data.sort((a,b)=>(b.id===id)-(a.id===id)||a.name.localeCompare(b.name));ed={root:id,files:data};tab=id;drawEd()}
+function drawEd(){const f=cf();$('#app').innerHTML=`<header class="eh"><button onclick="back()">←</button><button id="wb" class="wbtn" onclick="$('#wp').hidden=!$('#wp').hidden">⚠ <i id="wn">0</i></button><span class="inf">บรรทัดไม่จำกัด · <i id="ln" style="font-style:normal"></i> บรรทัด</span><button onclick="run()">▶</button><button class="sv" id="sv" onclick="save()">Save</button></header>
+<div class="tabs">${ed.files.map(t=>`<button class="${t.id===tab?'on':''}" onclick="sw('${t.id}')">${esc(t.name)}${t.dirty?' •':''}</button>`).join('')}<button onclick="addSub()">+ ไฟล์ย่อย</button>${tab!==ed.root?'<button class="d" style="color:var(--err)" onclick="delSub()">ลบแท็บนี้</button>':''}</div>
+<div class="fb"><input id="fq" placeholder="ค้นหาคำ หรือพิมพ์เลขบรรทัด" value="${esc(fqv)}" oninput="fqv=this.value" onkeydown="if(event.key==='Enter')find(1)"><button onclick="find(-1)">↑</button><button onclick="find(1)">↓</button></div>
+<div id="wp" hidden></div><div class="ed"><div id="gt"></div><div id="hl"></div><textarea id="ta" wrap="off" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea></div>`;
+ const ta=$('#ta');if(f.is_binary){ta.value='ไฟล์นี้ไม่ใช่ข้อความ แก้ไขในหน้านี้ไม่ได้ (ดาวน์โหลดจากหน้ารายการได้)';ta.disabled=true}else ta.value=f.content;
+ ta.oninput=()=>{f.content=ta.value;f.dirty=true;clearTimeout(ta.t);ta.t=setTimeout(scan,250);gutter()};
+ ta.onscroll=()=>{const y='translateY('+-ta.scrollTop+'px)';$('#gt').style.transform=y;$('#hl').style.transform=y};
+ ta.onkeydown=e=>{if(e.key==='Tab'){e.preventDefault();document.execCommand('insertText',false,'  ')}};scan()}
+function scan(){const f=cf();warns=f.is_binary?[]:lint(f.name,f.content);$('#wn').textContent=warns.length;$('#wb').classList.toggle('has',warns.length>0);
+ $('#wp').innerHTML=warns.map(x=>`<div onclick="goLine(${x.l})"><b>บรรทัด ${x.l}</b> ${esc(x.m)}${x.f?`<code>${esc(x.f)}</code>`:''}</div>`).join('')||'<div>ไม่พบจุดที่น่าสงสัย</div>';gutter()}
+function gutter(){const n=$('#ta').value.split('\n').length,bad=new Set(warns.map(x=>x.l));$('#ln').textContent=n;
+ $('#gt').innerHTML=Array.from({length:n},(_,i)=>`<div class="${bad.has(i+1)?'bl':''}">${i+1}</div>`).join('');
+ $('#hl').innerHTML=Array.from({length:n},(_,i)=>`<div class="${bad.has(i+1)?'hb':''}"></div>`).join('')}
+function goLine(l){const ta=$('#ta'),L=ta.value.split('\n');let p=0;for(let i=0;i<l-1;i++)p+=L[i].length+1;ta.focus();ta.setSelectionRange(p,p+(L[l-1]||'').length);ta.scrollTop=Math.max(0,(l-4)*20);$('#wp').hidden=true}
+function find(d){const raw=$('#fq').value.trim(),ta=$('#ta');if(!raw)return;
+ if(/^:?\d+$/.test(raw))return goLine(Math.min(Math.max(+raw.replace(':',''),1),ta.value.split('\n').length));
+ const t=raw.replace(/^"(.*)"$/,'$1').toLowerCase(),v=ta.value.toLowerCase();
+ let i=d<0?v.lastIndexOf(t,ta.selectionStart-1):v.indexOf(t,ta.selectionEnd);if(i<0)i=d<0?v.lastIndexOf(t):v.indexOf(t);
+ if(i<0)return toast('ไม่พบ "'+t+'"');const ln=v.slice(0,i).split('\n').length;
+ ta.focus();ta.setSelectionRange(i,i+t.length);ta.scrollTop=Math.max(0,(ln-4)*20);toast('บรรทัด '+ln)}
+function sw(id){tab=id;drawEd()}
+async function addSub(){const n=(prompt('ชื่อไฟล์ย่อย เช่น style.css หรือ app.js')||'').trim();if(!n)return;
+ const f=await ins({name:n},ed.root);if(f){ed.files.push({...f,content:''});tab=f.id;drawEd()}}
+function delSub(){const f=cf();sheet([['ลบไฟล์ย่อย "'+f.name+'" ถาวร',async()=>{const{error}=await sb.from('fm_files').delete().eq('id',f.id);if(error)return toast(error.message);
+ ed.files=ed.files.filter(x=>x.id!==f.id);files=files.filter(x=>x.id!==f.id);tab=ed.root;drawEd()},'d'],['ยกเลิก']])}
+async function save(){const b=$('#sv');b.textContent='กำลังบันทึก...';let bad=0;
+ for(const f of ed.files.filter(x=>x.dirty)){const{error}=await sb.from('fm_files').update({content:f.content,updated_at:new Date().toISOString()}).eq('id',f.id);if(error){bad++;toast('บันทึกไม่สำเร็จ: '+error.message)}else f.dirty=false}
+ b.textContent='Save';if(!bad)toast('บันทึกแล้ว ลิงก์เดิมแสดงผลล่าสุด');drawEd.keep=1;document.querySelectorAll('.tabs button').forEach(t=>t.textContent=t.textContent.replace(' •',''))}
+function back(){const go=()=>{ed=null;list()};ed.files.some(f=>f.dirty)?sheet([['ออกโดยไม่บันทึก',go,'d'],['ยกเลิก']],'ยังมีการแก้ไขที่ไม่ได้ Save'):go()}
+function run(force){if(warns.length&&!force)return sheet([['รันต่อเลย',()=>run(1)],['กลับไปแก้']],`พบ ${warns.length} จุดที่น่าสงสัย (ดูที่ปุ่ม ⚠) จะรันต่อหรือไม่`);
+ const fs=ed.files.map(f=>({name:f.name,content:f.content,is_binary:f.is_binary,mime:f.mime,main:f.id===ed.root})),d=document.createElement('div');d.className='pv';
+ d.innerHTML='<header><button>✕ ปิด</button><b>ผลลัพธ์</b></header>';d.querySelector('button').onclick=()=>d.remove();d.appendChild(frame(fs));document.body.appendChild(d)}
+
+/* ---------- เริ่มต้น ---------- */
+(async()=>{const v=new URLSearchParams(location.search).get('v');if(v)return viewer(v);
+ const{data:{session}}=await sb.auth.getSession();if(!session)return loginView();user=session.user;await load();list()})();
+</script></body></html>
