@@ -29,7 +29,7 @@ a.btn:focus-visible{outline:3px solid #6366f155;outline-offset:2px}
  <a class="btn" id="bk" href="/">กลับหน้าหลัก</a>
 </main>
 <script>
-const MAIN_URL='';/* ใส่ลิงก์หน้าหลัก (ไฟล์ 51) เช่น 'https://myhost.com/' ถ้าเว้นว่างจะใช้หน้าแรกของเว็บนี้ */
+const MAIN_URL='https://suphasan887-beep.github.io/index.html/';/* ใส่ลิงก์หน้าหลัก (ไฟล์ 51) เช่น 'https://myhost.com/' ถ้าเว้นว่างจะใช้หน้าแรกของเว็บนี้ */
 const sb=supabase.createClient('https://ztkqtvdllpzjsvlqxzni.supabase.co','sb_publishable_BkDeJmZYwMys8OP4eMkpVQ_F6hrJ35t',{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
