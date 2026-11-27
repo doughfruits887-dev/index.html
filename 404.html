@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ไม่พบลิงก์ · ไฟล์ของฉัน</title>
+<meta name="robots" content="noindex">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1b2430;--mut:#6b7686;--acc:#4f46e5}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{font:16px/1.5 Sarabun,sans-serif;color:var(--ink);background:linear-gradient(160deg,#e0e7ff 0%,#fce7f3 55%,#dcfce7 100%) fixed;display:grid;place-items:center;padding:16px}
+main{width:min(360px,100%);background:#fff;border-radius:22px;padding:28px 22px 22px;text-align:center;box-shadow:0 12px 36px #4f46e533,0 2px 6px #0000001a;display:flex;flex-direction:column;gap:10px}
+.sheet{position:relative;width:84px;height:104px;margin:0 auto 6px;border-radius:6px 6px 8px 8px;overflow:hidden;background:linear-gradient(#fff 0 52%,#6366f1 52%);box-shadow:0 6px 16px #4f46e55a,inset 0 0 0 1px #c7d2fe;display:grid;align-items:end;justify-items:center;padding-bottom:9px;color:#fff;font-weight:600;font-size:26px;letter-spacing:.02em}
+.sheet::before{content:"";position:absolute;top:0;right:0;width:24px;height:24px;background:linear-gradient(225deg,#fff 50%,#c7d2fe 50%);border-bottom-left-radius:6px;box-shadow:-1px 1px 2px #0002}
+.sheet::after{content:"";position:absolute;left:12px;right:12px;top:32px;height:22px;background:repeating-linear-gradient(#c7d2fe 0 3px,transparent 3px 9px)}
+h1{margin:0;font-size:22px;color:#312e81}
+p{margin:0;color:var(--mut);font-size:15px}
+code{display:block;margin:2px auto 0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 10px;border-radius:8px;background:#eef2ff;color:var(--acc);font:13px ui-monospace,Menlo,monospace}
+a.btn{display:block;margin-top:8px;padding:12px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#06b6d4);color:#fff;font-weight:600;text-decoration:none}
+a.btn:focus-visible{outline:3px solid #6366f155;outline-offset:2px}
+#ld{color:var(--mut)}
+</style></head><body>
+<p id="ld">กำลังตรวจสอบลิงก์...</p>
+<main id="nf" hidden>
+ <div class="sheet" aria-hidden="true">404</div>
+ <h1>ไม่พบลิงก์นี้</h1>
+ <p>ลิงก์อาจพิมพ์ผิด เจ้าของยังไม่ได้สร้างลิงก์ หรือลบไฟล์นี้ไปแล้ว</p>
+ <code id="pt"></code>
+ <a class="btn" id="bk" href="/">กลับหน้าหลัก</a>
+</main>
+<script>
+const MAIN_URL='https://suphasan887-beep.github.io/index.html/';/* ใส่ลิงก์หน้าหลัก (ไฟล์ 51) เช่น 'https://myhost.com/' ถ้าเว้นว่างจะใช้หน้าแรกของเว็บนี้ */
+const sb=supabase.createClient('https://ztkqtvdllpzjsvlqxzni.supabase.co','sb_publishable_BkDeJmZYwMys8OP4eMkpVQ_F6hrJ35t',{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const ext=n=>n.includes('.')?n.split('.').pop().toLowerCase():'';
+function b64(u){let s='';for(let i=0;i<u.length;i+=32768)s+=String.fromCharCode.apply(null,u.subarray(i,i+32768));return btoa(s)}
+
+function build(fs){const m=fs.find(f=>/\.html?$/i.test(f.name))||fs.find(f=>f.main)||fs[0],e=ext(m.name);
+ const by=u=>fs.find(f=>f!==m&&f.name===u.split(/[?#]/)[0].split('/').pop());
+ if(m.is_binary)return(m.mime||'').startsWith('image/')?'<img style="max-width:100%" src="data:'+m.mime+';base64,'+m.content+'">':'<p style="font:16px sans-serif;padding:16px">ไฟล์นี้ไม่ใช่ข้อความ เปิดดูในเว็บไม่ได้ ให้ดาวน์โหลดแทน</p>';
+ if(e==='html'||e==='htm'){let h=m.content;
+  h=h.replace(/<link\b[^>]*href=["']([^"']+)["'][^>]*>/gi,(t,u)=>{const f=by(u);return f&&/stylesheet/i.test(t)?'<style>'+f.content+'</style>':t});
+  return h.replace(/<script\b([^>]*?)src=["']([^"']+)["']([^>]*)>\s*<\/script>/gi,(t,a,u,b)=>{const f=by(u);return f?'<script'+a+b+'>'+f.content.replace(/<\/script/gi,'<\\/script')+'<\/script>':t})}
+ if(e==='svg')return m.content;
+ if(['js','mjs'].includes(e)){if(/\brequire\(|\bprocess\.|\bmodule\.exports/.test(m.content))return'<p style="font:16px sans-serif;padding:16px">ไฟล์นี้ใช้ Node (require/process) รันในเบราว์เซอร์ไม่ได้ ต้องรันบนเซิร์ฟเวอร์ที่มี Node</p>';
+  return'<body style="font:14px monospace;padding:12px;white-space:pre-wrap"><div id=o></div><script>const o=document.getElementById("o"),p=(c,a)=>{const d=document.createElement("div");d.style.color=c;d.textContent=a.map(x=>typeof x==="object"?JSON.stringify(x):String(x)).join(" ");o.append(d)};console.log=(...a)=>p("#111",a);console.error=(...a)=>p("#c00",a);onerror=(m,s,l)=>p("#c00",["Error: "+m+" (บรรทัด "+l+")"]);<\/script><script>'+m.content.replace(/<\/script/gi,'<\\/script')+'<\/script>'}
+ const srv=['py','java','c','cpp','cs','go','rs','php','rb','sh','kt','swift','sql'].includes(e)?'<p style="font:14px sans-serif;color:#92400e">ภาษานี้ต้องมีตัวรันบนเซิร์ฟเวอร์ รันในเบราว์เซอร์ไม่ได้ จึงแสดงเป็นข้อความ</p>':'';
+ return srv+'<pre style="white-space:pre-wrap;font:14px monospace;padding:12px">'+esc(m.content)+'</pre>'}
+function frame(fs,pub){const f=document.createElement('iframe');f.setAttribute('sandbox','allow-scripts allow-forms allow-popups allow-modals');
+ const m=fs.find(x=>/\.html?$/i.test(x.name))||fs.find(x=>x.main)||fs[0],e=ext(m.name);
+ const rend=m.is_binary?(m.mime||'').startsWith('image/'):['html','htm','svg'].includes(e);
+ f.srcdoc=pub&&!rend
+  ?'<pre style="white-space:pre-wrap;word-break:break-all;font:12px monospace;padding:12px;color:#555">'+esc(m.is_binary?m.content:b64(new TextEncoder().encode(m.content)))+'</pre>'
+  :build(fs);
+ return f}
+async function viewer(o,soft){if(!soft)document.body.innerHTML='<p style="padding:20px">กำลังโหลด...</p>';
+ const{data}=await(o.slug?sb.rpc('fm_public_by_slug',{p_slug:o.slug}):sb.rpc('fm_public_bundle',{p_id:o.id}));
+ if(!data){if(soft)return false;document.body.innerHTML='<p style="padding:20px">ไม่พบลิงก์นี้ หรือเจ้าของยังไม่ได้สร้างลิงก์</p>';return true}
+ document.title=data.name;document.body.innerHTML='';const f=frame(data.files,1);
+ f.style.cssText='position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff';document.body.appendChild(f);return true}
+
+
+/* ---------- เริ่มต้น: ลองเปิดเป็นลิงก์ที่แชร์ไว้ ถ้าไม่ใช่ค่อยโชว์หน้า 404 ---------- */
+(async()=>{
+ const seg=decodeURIComponent(location.pathname.split('/').filter(Boolean).pop()||'');
+ try{if(/^[a-z0-9][a-z0-9_-]{1,39}$/i.test(seg)&&await viewer({slug:seg.toLowerCase()},true))return}catch(e){}
+ $('#ld').hidden=true;$('#nf').hidden=false;$('#pt').textContent=location.pathname;
+ $('#bk').href=MAIN_URL||location.origin+location.pathname.replace(/[^/]*$/,'')||'/'})();
+</script></body></html>
